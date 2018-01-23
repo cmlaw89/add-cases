@@ -4,8 +4,22 @@ function pasteData() {
   
   //Fix yesterdays date and the date string use in the database
   var date = new Date()
-  date.setDate(date.getDate() - 2);
-  var date_string = (pad(date.getMonth()+1)).toString()+"-"+pad(date.getDate()).toString()+"-"+date.getFullYear().toString().slice(2)
+  date.setDate(date.getDate() - 0);
+  var date_string = pad(date.getMonth()+1).toString()+"-"+pad(date.getDate()).toString()+"-"+date.getFullYear().toString().slice(2);
+  
+  //Extract the data from the Translation Proofreading Sheet (Schedule)
+  var yesterday_data = getData(date);
+  for (var i = 0; i < yesterday_data.length; i++) {
+    yesterday_data[i].splice(1, 1);
+  }
+  
+  var num_rows = yesterday_data.length;
+  
+  var dates = []
+  for (var i = 0; i < num_rows; i++) {
+    dates.push([date_string]);
+  }
+  
   
   //Find the last database entry
   var database = SpreadsheetApp.getActiveSpreadsheet().getSheetByName("Case Database");
@@ -22,27 +36,15 @@ function pasteData() {
     }
   }
   
-  //Extract the data from the Translation Proofreading Sheet (Schedule)
-  var yesterday_data = getData(date);
-  for (var i = 0; i < yesterday_data.length; i++) {
-    yesterday_data[i].splice(1, 1);
-  }
-  
-  var num_rows = yesterday_data.length;
-  
-  var dates = []
-  for (var i = 0; i < num_rows; i++) {
-    dates.push([date_string]);
-  }
+  //Remove duplicates and count number of deleted rows
+  var deleted_rows = findAndRemoveDuplicates(yesterday_data, date, last_row)
   
   //Add the data to the Translation Database
   if (num_rows > 0) {
-    database.getRange(last_row+1, 5, num_rows, 6).setValues(yesterday_data);
-    database.getRange(last_row+1, 3, num_rows, 1).setValues(dates);
+    database.getRange(last_row - deleted_rows + 1, 5, num_rows, 6).setValues(yesterday_data);
+    database.getRange(last_row - deleted_rows + 1, 3, num_rows, 1).setValues(dates);
   }
   
-
-
 }
 
 
@@ -118,11 +120,69 @@ function trimData(data) {
   return data
 }
 
-function pad(n){
+function pad(n) {
   return n<10 ? '0'+n : n
 }
 
-function findDuplicates() {
-  
-}  
 
+function toDateString(date) {
+  return pad(date.getMonth()+1).toString()+"-"+pad(date.getDate()).toString()+"-"+date.getFullYear().toString().slice(2);
+}
+
+function findAndRemoveDuplicates(yesterday_data, date, last_row) {
+  //Locates existing entries with the same case ID in the database
+  //Updates the total word count
+  //Removes the existing entry
+  
+  var date_string = toDateString(date)
+  
+  var database = SpreadsheetApp.getActiveSpreadsheet().getSheetByName("Case Database");
+  
+  //Find the start index for entries made 1 month previously
+  var date_col = database.getRange(2, 3, last_row - 1, 1).getValues();
+  date_col = date_col.map( function (date_col) { return toDateString(date_col[0]) });
+  
+  date.setDate(date.getMonth() - 1);
+  date = toDateString(date);
+  
+  var start_index = 0;  
+  if (date_col.indexOf(date) != -1) {
+    start_index = date_col.indexOf(date);
+  }
+  
+  //Build array of case IDs
+  var case_ids = database.getRange(start_index + 2, 5, last_row - 1, 1).getValues();
+  case_ids = case_ids.map( function (case_id) { return case_id[0] });
+  
+  //Loop through the case IDs to be added, deleting rows that already have data for a case ID
+  //and summing their word counts
+  var deleted_row_counter = 0;
+  for (var i = 0; i < yesterday_data.length; i++) {
+    var entry = yesterday_data[i][0];
+    var row_index = case_ids.indexOf(entry);
+    if (row_index != -1) {
+      var words = database.getRange(row_index + start_index + 2, 10, 1, 1).getValues()[0][0];
+      yesterday_data[i][5] += words;
+      database.deleteRow(row_index + start_index + 2);
+      deleted_row_counter += 1;
+      case_ids.splice(row_index, 1);
+    }
+  }
+  
+  return deleted_row_counter
+}
+
+
+function onlyUnique(value, index, self) { 
+    return self.indexOf(value) === index;
+}
+
+function findDuplicates() {
+  var database = SpreadsheetApp.getActiveSpreadsheet().getSheetByName("Case Database");
+  
+  var case_ids = database.getRange(1, 4, 200, 1).getValues();
+  case_ids = case_ids.map( function (case_id) { return case_id[0] });
+  
+  Logger.log(case_ids.filter( onlyUnique ).length);
+
+}
