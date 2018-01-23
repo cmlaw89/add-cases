@@ -4,7 +4,7 @@ function pasteData() {
   
   //Fix yesterdays date and the date string use in the database
   var date = new Date()
-  date.setDate(date.getDate() - 0);
+  date.setDate(date.getDate() - 1);
   var date_string = pad(date.getMonth()+1).toString()+"-"+pad(date.getDate()).toString()+"-"+date.getFullYear().toString().slice(2);
   
   //Extract the data from the Translation Proofreading Sheet (Schedule)
@@ -138,11 +138,11 @@ function findAndRemoveDuplicates(yesterday_data, date, last_row) {
   
   var database = SpreadsheetApp.getActiveSpreadsheet().getSheetByName("Case Database");
   
-  //Find the start index for entries made 1 month previously
+  //Find the start index for entries made 2 month previously
   var date_col = database.getRange(2, 3, last_row - 1, 1).getValues();
   date_col = date_col.map( function (date_col) { return toDateString(date_col[0]) });
   
-  date.setDate(date.getMonth() - 1);
+  date.setDate(date.getMonth() - 2);
   date = toDateString(date);
   
   var start_index = 0;  
@@ -161,6 +161,7 @@ function findAndRemoveDuplicates(yesterday_data, date, last_row) {
     var entry = yesterday_data[i][0];
     var row_index = case_ids.indexOf(entry);
     if (row_index != -1) {
+      Logger.log(entry);
       var words = database.getRange(row_index + start_index + 2, 10, 1, 1).getValues()[0][0];
       yesterday_data[i][5] += words;
       database.deleteRow(row_index + start_index + 2);
